@@ -17,5 +17,6 @@ From this experiment, when there are no process/node failures, messages between 
 
 # Future work
 
-* Understand the behavior when processes may get restarted by a supervisor.
-* Understand the behavior when nodes are killed and processes get restarted on another node.
+* Understand the behavior when processes may get restarted by a local supervisor.
+* Understand the behavior when using a process registry like [Horde](https://hexdocs.pm/horde/getting_started.html).
+* Understand the behavior when nodes are killed and processes get restarted on another node by something like [libcluster](https://hexdocs.pm/libcluster/readme.html).
