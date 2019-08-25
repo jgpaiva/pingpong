@@ -26,6 +26,47 @@ defmodule Pingpong do
     pong()
   end
 
+  # WIP: needs to be connected to the server
+  @doc """
+  Updates the state based on the consistency rules. Detects out of order messages as well as duplicates.
+
+  ## Examples
+  iex> Pingpong.update_pong_state(%{msgs: %{a: [0]}, dup_err: 0, order_err: 0}, {1, :a})
+  %{msgs: %{a: [1, 0]}, dup_err: 0, order_err: 0}
+
+  iex> Pingpong.update_pong_state(%{msgs: %{a: [1, 0]}, dup_err: 0, order_err: 0}, {0, :a})
+  %{msgs: %{a: [1, 0]}, dup_err: 1, order_err: 0}
+
+  iex> Pingpong.update_pong_state(%{msgs: %{a: [3]}, dup_err: 0, order_err: 0}, {0, :a})
+  %{msgs: %{a: [3, 0]}, dup_err: 0, order_err: 1}
+
+  iex> Pingpong.update_pong_state(%{msgs: %{}, dup_err: 0, order_err: 0}, {3, :a})
+  %{msgs: %{a: [3]}, dup_err: 0, order_err: 0}
+
+  iex> Pingpong.update_pong_state(%{msgs: %{a: [3]}, dup_err: 0, order_err: 1}, {3, :b})
+  %{msgs: %{a: [3], b: [3]}, dup_err: 0, order_err: 1}
+  """
+  def update_pong_state(state, {counter, client}) do
+    case state.msgs do
+      %{^client => [h | _] = old} when h == counter - 1 ->
+        %{state | msgs: %{state.msgs | client => [counter | old]}}
+
+      %{^client => old} ->
+        if counter in old do
+          %{state | msgs: %{state.msgs | client => old}, dup_err: state.dup_err + 1}
+        else
+          %{
+            state
+            | msgs: %{state.msgs | client => Enum.sort([counter | old], &(&1 >= &2))},
+              order_err: state.order_err + 1
+          }
+        end
+
+      _ ->
+        %{state | msgs: Map.put(state.msgs, client, [counter])}
+    end
+  end
+
   @doc """
   The pingpong client. It sends `num_pings` pings to another process.
 
