@@ -46,7 +46,7 @@ services:
     networks:
       net1:
         aliases:
-          - pumba2
+          - pumba3
   chaos:
     image: gaiaadm/pumba
     depends_on:
