@@ -1,0 +1,67 @@
+version: "3"
+services:
+  client:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    command: --mode client
+    depends_on:
+      - server
+    ports:
+      - 4369
+    networks:
+      net1:
+        aliases:
+          - client
+  server:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    command: --mode server
+    ports:
+      - 4369
+    networks:
+      net1:
+        aliases:
+          - server
+  delay_server:
+    image: gaiaadm/pumba
+    depends_on:
+      - "server"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: "--log-level info netem --tc-image gaiadocker/iproute2 --duration 1m delay --time 2000 --jitter 1500 --distribution normal re2:server"
+    networks:
+      net1:
+        aliases:
+          - pumba2
+  loss_client:
+    image: gaiaadm/pumba
+    depends_on:
+      - "client"
+      - "server"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: "--log-level info netem --tc-image gaiadocker/iproute2 --duration 1m loss --percent 5 re2:client"
+    networks:
+      net1:
+        aliases:
+          - pumba2
+  chaos:
+    image: gaiaadm/pumba
+    depends_on:
+      - "server"
+      - "client"
+      - "delay_server"
+      - "loss_client"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: "--log-level info netem --tc-image gaiadocker/iproute2 --duration 1m delay --time 2000 --jitter 1500 --distribution normal re2:client"
+    networks:
+      net1:
+        aliases:
+          - pumba
+
+networks:
+  net1:
+    driver: bridge
