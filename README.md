@@ -1,6 +1,6 @@
 # Pingpong
 
-Ping pong server and client combined with [pumba](https://github.com/alexei-led/pumba) to shine some light on the delivery guarantees of elixir / erlang.
+Pretty terrible ping pong server and client combined with [pumba](https://github.com/alexei-led/pumba) to shine some light on the delivery guarantees of elixir / erlang (see 10.8 and 10.9 on [this](http://erlang.org/faq/academic.html) page for what the official documentation has to say about this).
 
 # What does it do
 
@@ -11,4 +11,11 @@ While the client and the server are running, pumba is injecting network delays a
 
 Start the experiment with `docker-compose build && docker-compose run chaos`, observe the experiment with `docker-compose logs -f`, stop the experiment with `docker-compose down`.
 
+# Conclusions
 
+From this experiment, when there are no process/node failures, messages between two processes are delivered in order and without loss.
+
+# Future work
+
+* Understand the behavior when processes may get restarted by a supervisor.
+* Understand the behavior when nodes are killed and processes get restarted on another node.
