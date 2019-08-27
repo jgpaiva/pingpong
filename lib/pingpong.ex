@@ -8,19 +8,20 @@ defmodule Pingpong do
 
   ## Examples
 
-  iex> a = spawn(fn -> Pingpong.pong() end); now = DateTime.utc_now(); send a, {:ping, 0, now, self()}; send a, {:ping, 1, now, self()}; {:pong, 0, _} = receive do a -> a end; {:pong, 1, _} = receive do a -> a end; true
+  iex> a = spawn(fn -> Pingpong.pong() end); now = DateTime.utc_now(); send a, {:ping, self(), 0, now}; send a, {:ping, self(), 1, now}; {:pong, _, 0} = receive do a -> a end; {:pong, _, 1} = receive do a -> a end; true
   true
 
   """
   def pong do
     receive do
-      {:ping, counter, timestamp, client} ->
+      {:ping, client, counter, timestamp} ->
         (fn ->
            diff = DateTime.diff(DateTime.utc_now(), timestamp, :millisecond)
            # uses :erlang.display instead of IO.puts so that it's displayed at the local node
            :erlang.display("PONG #{counter}, latency (ms): #{diff}")
-           send(client, {:pong, counter, self()})
+           send(client, {:pong, self(), counter})
          end).()
+        {:tick, sender_pid} -> send(sender_pid, {:stats, self(), {}})
     end
 
     pong()
@@ -72,7 +73,7 @@ defmodule Pingpong do
 
   ## Examples
 
-  iex> a = self(); spawn(fn -> Pingpong.ping(a, 2) end); {:ping, 1, _, _} = receive do a -> a end; {:ping, 2, _, _} = receive do a -> a end; true
+  iex> a = self(); spawn(fn -> Pingpong.ping(a, 2) end); {:ping, _, 1, _} = receive do a -> a end; {:ping, _, 2, _} = receive do a -> a end; true
   true
 
   """
@@ -81,7 +82,7 @@ defmodule Pingpong do
 
     Enum.map(1..num_pings, fn counter ->
       IO.puts("PING #{counter} #{DateTime.utc_now()}")
-      send(server_pid, {:ping, counter, DateTime.utc_now(), self()})
+      send(server_pid, {:ping, self(), counter, DateTime.utc_now()})
       :timer.sleep(1000)
     end)
   end
