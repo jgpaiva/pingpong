@@ -3,20 +3,29 @@ defmodule PingpongTest do
   doctest Pingpong
 
   test "Pong replies back with statistics when it gets a :tick messages" do
-    pong_pid = spawn(Pingpong, :pong, [])
+    s = self()
+    pong_pid = spawn(Pingpong, :pong_state_actor,
+      [%{msgs: %{}, dup_err: 0, order_err: 0}, fn x -> send(s, x) end])
     send(pong_pid, {:tick, self()})
+
     receive do
-      {:stats, ^pong_pid, stats} -> stats
+      x -> x
     end
   end
 
-  @tag :skip
   test "When Pong gets 3 pings, the stats include 3 messages" do
-    pong_pid = spawn(Pingpong, :pong, [])
-    Enum.map(1..3, fn counter -> send(pong_pid, {:ping, self(), counter, DateTime.utc_now()}) end)
+    s = self()
+    pong_pid = spawn(Pingpong, :pong_state_actor,
+      [%{msgs: %{}, dup_err: 0, order_err: 0}, fn x -> send(s, x) end])
+
+    Enum.each(1..3, fn counter ->
+      send(pong_pid, {:ping, self(), counter, DateTime.utc_now()})
+    end)
+
     send(pong_pid, {:tick, self()})
+
     receive do
-      {:stats, ^pong_pid, stats} -> %{num_msgs: 3} = stats
+      "3" -> true
     end
   end
 end

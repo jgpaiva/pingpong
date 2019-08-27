@@ -14,17 +14,30 @@ defmodule Pingpong do
   """
   def pong do
     receive do
-      {:ping, client, counter, timestamp} ->
+      {:ping, client_put, counter, timestamp} ->
         (fn ->
            diff = DateTime.diff(DateTime.utc_now(), timestamp, :millisecond)
            # uses :erlang.display instead of IO.puts so that it's displayed at the local node
            :erlang.display("PONG #{counter}, latency (ms): #{diff}")
-           send(client, {:pong, self(), counter})
+           send(client_put, {:pong, self(), counter})
          end).()
-        {:tick, sender_pid} -> send(sender_pid, {:stats, self(), {}})
     end
 
     pong()
+  end
+
+  def pong_state_actor(state, print_f) do
+    receive do
+      {:ping, client_pid, counter, timestamp} ->
+        pong_state_actor(update_pong_state(state, {counter, client_pid}), print_f)
+
+      {:tick, sender_pid} ->
+        print_f.("#{count_msgs(state)}")
+    end
+  end
+
+  def count_msgs(%{msgs: msgs}) do
+    Enum.sum(Enum.map(msgs, fn {k, v} -> Enum.count(v) end))
   end
 
   # WIP: needs to be connected to the server
@@ -80,7 +93,7 @@ defmodule Pingpong do
   def ping(server_pid, num_pings) do
     IO.puts("Sending pings to #{inspect(server_pid)}")
 
-    Enum.map(1..num_pings, fn counter ->
+    Enum.each(1..num_pings, fn counter ->
       IO.puts("PING #{counter} #{DateTime.utc_now()}")
       send(server_pid, {:ping, self(), counter, DateTime.utc_now()})
       :timer.sleep(1000)
