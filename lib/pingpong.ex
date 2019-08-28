@@ -4,40 +4,61 @@ defmodule Pingpong do
   """
 
   @doc """
-  The pingpong server. It returns the ping along with its counter to the sender.
-
-  ## Examples
-
-  iex> a = spawn(fn -> Pingpong.pong() end); now = DateTime.utc_now(); send a, {:ping, self(), 0, now}; send a, {:ping, self(), 1, now}; {:pong, _, 0} = receive do a -> a end; {:pong, _, 1} = receive do a -> a end; true
-  true
-
+  The pingpong server process. It receives the ping, calculates its latency and
+  returns it along with its counter to the sender. It also sends the ping to
+  the statistics process along with the latency to keep statistics.
   """
-  def pong do
+  def pong(stats_pid) do
     receive do
-      {:ping, client_put, counter, timestamp} ->
+      {:ping, client_pid, counter, timestamp} ->
         (fn ->
-           diff = DateTime.diff(DateTime.utc_now(), timestamp, :millisecond)
+           latency = DateTime.diff(DateTime.utc_now(), timestamp, :millisecond)
            # uses :erlang.display instead of IO.puts so that it's displayed at the local node
-           :erlang.display("PONG #{counter}, latency (ms): #{diff}")
-           send(client_put, {:pong, self(), counter})
+           send(client_pid, {:pong, self(), counter})
+           send(stats_pid, {:ping, client_pid, counter, latency})
          end).()
     end
 
-    pong()
+    pong(stats_pid)
   end
 
-  def pong_state_actor(state, print_f) do
-    receive do
-      {:ping, client_pid, counter, timestamp} ->
-        pong_state_actor(update_pong_state(state, {counter, client_pid}), print_f)
+  def ticker(stats_pid) do
+    :timer.sleep(1000)
+    send(stats_pid, {:tick, self()})
+    ticker(stats_pid)
+  end
 
-      {:tick, sender_pid} ->
-        print_f.("#{count_msgs(state)}")
+  def pong_entrypoint() do
+    stats_pid =
+      spawn(Pingpong, :statistics, [
+        %{msgs: %{}, dup_err: 0, order_err: 0},
+        fn x ->
+          :erlang.display(x)
+        end
+      ])
+
+    spawn(Pingpong, :ticker, [stats_pid])
+    pong(stats_pid)
+  end
+
+  @doc """
+  The statistics process. Keeps track of the messages, calculates if they
+  were delivered with errors and returns statistics to be printed.
+  """
+  def statistics(state, print_f) do
+    receive do
+      {:ping, client_pid, counter, _latency} ->
+        statistics(update_pong_state(state, {counter, client_pid}), print_f)
+
+      {:tick, _sender_pid} ->
+        print_f.("msgs: #{count_msgs(state)}")
     end
+
+    statistics(state, print_f)
   end
 
   def count_msgs(%{msgs: msgs}) do
-    Enum.sum(Enum.map(msgs, fn {k, v} -> Enum.count(v) end))
+    Enum.sum(Enum.map(msgs, fn {_k, v} -> Enum.count(v) end))
   end
 
   # WIP: needs to be connected to the server
@@ -94,9 +115,9 @@ defmodule Pingpong do
     IO.puts("Sending pings to #{inspect(server_pid)}")
 
     Enum.each(1..num_pings, fn counter ->
-      IO.puts("PING #{counter} #{DateTime.utc_now()}")
+      #IO.puts("PING #{counter} #{DateTime.utc_now()}")
       send(server_pid, {:ping, self(), counter, DateTime.utc_now()})
-      :timer.sleep(1000)
+      :timer.sleep(10)
     end)
   end
 
@@ -131,15 +152,25 @@ defmodule Pingpong do
            {:ok, _} = Node.start(:"client@pingpong_client_1.pingpong_net1")
            Node.set_cookie(String.to_atom("superpingpongcookie"))
            IO.puts("Running client at #{inspect({Node.self(), Node.get_cookie()})}")
-           true = Node.connect(:"server@pingpong_server_1.pingpong_net1")
+           result = Node.connect(:"server@pingpong_server_1.pingpong_net1")
+           # retry in case connect didn't work
+           unless result do
+             true = Node.connect(:"server@pingpong_server_1.pingpong_net1")
+           end
+
            IO.puts("Available nodes: #{inspect(Node.list())}")
            IO.puts("Spawning link in server")
 
            server_pid =
-             Node.spawn_link(:"server@pingpong_server_1.pingpong_net1", Pingpong, :pong, [])
+             Node.spawn_link(
+               :"server@pingpong_server_1.pingpong_net1",
+               Pingpong,
+               :pong_entrypoint,
+               []
+             )
 
            IO.puts("Starting client")
-           ping(server_pid, 1000)
+           ping(server_pid, 100_000)
          end).()
 
       _ ->
