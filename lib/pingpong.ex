@@ -51,7 +51,9 @@ defmodule Pingpong do
         statistics(update_pong_state(state, {counter, client_pid}), print_f)
 
       {:tick, _sender_pid} ->
-        print_f.("msgs: #{count_msgs(state)}")
+        print_f.(
+          "msgs: #{count_msgs(state)} dup_err: #{state.dup_err} order_err: #{state.order_err}"
+        )
     end
 
     statistics(state, print_f)
@@ -70,7 +72,7 @@ defmodule Pingpong do
   %{msgs: %{a: [1, 0]}, dup_err: 0, order_err: 0}
 
   iex> Pingpong.update_pong_state(%{msgs: %{a: [1, 0]}, dup_err: 0, order_err: 0}, {0, :a})
-  %{msgs: %{a: [1, 0]}, dup_err: 1, order_err: 0}
+  %{msgs: %{a: [1, 0, 0]}, dup_err: 1, order_err: 0}
 
   iex> Pingpong.update_pong_state(%{msgs: %{a: [3]}, dup_err: 0, order_err: 0}, {0, :a})
   %{msgs: %{a: [3, 0]}, dup_err: 0, order_err: 1}
@@ -88,7 +90,11 @@ defmodule Pingpong do
 
       %{^client => old} ->
         if counter in old do
-          %{state | msgs: %{state.msgs | client => old}, dup_err: state.dup_err + 1}
+          %{
+            state
+            | msgs: %{state.msgs | client => Enum.sort([counter | old], &(&1 >= &2))},
+              dup_err: state.dup_err + 1
+          }
         else
           %{
             state
@@ -115,7 +121,6 @@ defmodule Pingpong do
     IO.puts("Sending pings to #{inspect(server_pid)}")
 
     Enum.each(1..num_pings, fn counter ->
-      #IO.puts("PING #{counter} #{DateTime.utc_now()}")
       send(server_pid, {:ping, self(), counter, DateTime.utc_now()})
       :timer.sleep(10)
     end)

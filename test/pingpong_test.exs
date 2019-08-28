@@ -34,7 +34,27 @@ defmodule PingpongTest do
     send(pong_pid, {:tick, self()})
 
     receive do
-      "msgs: 3" -> true
+      x -> "msgs: 3 dup_err: 0 order_err: 0" = x
+    end
+  end
+
+  test "When we get pings with errors, the stats reflect that" do
+    s = self()
+
+    pong_pid =
+      spawn(Pingpong, :statistics, [
+        %{msgs: %{}, dup_err: 0, order_err: 0},
+        fn x -> send(s, x) end
+      ])
+
+    send(pong_pid, {:ping, self(), 2, DateTime.utc_now()})
+    send(pong_pid, {:ping, self(), 2, DateTime.utc_now()})
+    send(pong_pid, {:ping, self(), 1, DateTime.utc_now()})
+
+    send(pong_pid, {:tick, self()})
+
+    receive do
+      x -> "msgs: 3 dup_err: 1 order_err: 1" = x
     end
   end
 
