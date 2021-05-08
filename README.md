@@ -1,6 +1,6 @@
 # Pingpong
 
-Pretty terrible ping pong server and client combined with [pumba](https://github.com/alexei-led/pumba) to shine some light on the delivery guarantees of elixir / erlang (see 10.8 and 10.9 on [this](http://erlang.org/faq/academic.html) page for what the official documentation has to say about this).
+Pretty terrible ping pong server and client combined with [pumba](https://github.com/alexei-led/pumba) to shine some light on the delivery guarantees of elixir / erlang (see sections 10.8 and 10.9 on [this](http://erlang.org/faq/academic.html) page for what the official documentation has to say about this).
 
 # What does it do
 
